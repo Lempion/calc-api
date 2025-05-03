@@ -1,11 +1,11 @@
 package calculate
 
-type CalculationType struct {
-	ID         string `json:"id"`
+type Calculations struct {
+	ID         string `json:"id" gorm:"primaryKey;type:text"`
 	Expression string `json:"expression"`
 	Result     string `json:"result"`
 }
 
-type CalculationRequestType struct {
+type CalculationRequest struct {
 	Expression string `json:"expression"`
 }

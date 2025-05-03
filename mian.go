@@ -2,6 +2,7 @@ package main
 
 import (
 	"back/calculate"
+	"back/database"
 	myResp "back/http"
 	"fmt"
 	"github.com/google/uuid"
@@ -10,15 +11,13 @@ import (
 	"net/http"
 )
 
-var calculations = []calculate.CalculationType{}
-
 func getCalculations(c echo.Context) error {
-	return c.JSON(http.StatusOK, calculations)
+	return c.JSON(http.StatusOK, getAllCalculations())
 }
 
 func postCalculations(c echo.Context) error {
 
-	var req calculate.CalculationRequestType
+	var req calculate.CalculationRequest
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, myResp.Error(fmt.Sprintf("%v", err)))
@@ -29,7 +28,17 @@ func postCalculations(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, myResp.Error(fmt.Sprintf("%v", err)))
 	}
 
-	calc := saveToDB(req.Expression, result)
+	calc := calculate.Calculations{
+		ID:         uuid.NewString(),
+		Expression: req.Expression,
+		Result:     result,
+	}
+
+	dbAnswer := database.DB.Create(&calc)
+
+	if dbAnswer.Error != nil {
+		return c.JSON(http.StatusBadRequest, myResp.Error(fmt.Sprintf("%v", dbAnswer.Error)))
+	}
 
 	return c.JSON(http.StatusCreated, calc)
 }
@@ -37,19 +46,22 @@ func postCalculations(c echo.Context) error {
 func deleteCalculations(c echo.Context) error {
 	id := c.Param("id")
 
-	for i, v := range calculations {
-		if v.ID == id {
-			calculations = append(calculations[:i], calculations[i+1:]...)
-			return c.NoContent(http.StatusNoContent)
-		}
+	var calc calculate.Calculations
+
+	dbResult := database.DB.Where("id = ?", id).First(&calc)
+	if dbResult.Error != nil {
+		return c.JSON(http.StatusNotFound, myResp.Error(fmt.Sprintf("%v", dbResult.Error)))
 	}
-	return c.JSON(http.StatusBadRequest, myResp.Error("Calculation not found"))
+
+	database.DB.Delete(&calc)
+
+	return c.NoContent(http.StatusNoContent)
 }
 
 func patchCalculations(c echo.Context) error {
 	id := c.Param("id")
 
-	var req calculate.CalculationRequestType
+	var req calculate.CalculationRequest
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, myResp.Error(fmt.Sprintf("%v", err)))
@@ -60,30 +72,37 @@ func patchCalculations(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, myResp.Error(fmt.Sprintf("%v", err)))
 	}
 
-	for i, v := range calculations {
-		if v.ID == id {
-			calculations[i].Expression = req.Expression
-			calculations[i].Result = result
-			return c.JSON(http.StatusOK, calculations)
-		}
+	var calc calculate.Calculations
+
+	fmt.Printf("Извлеченный ID: %s\n", id)
+
+	dbResult := database.DB.Where("id = ?", id).First(&calc)
+	if dbResult.Error != nil {
+		return c.JSON(http.StatusNotFound, myResp.Error(fmt.Sprintf("%v", dbResult.Error)))
 	}
-	return c.JSON(http.StatusBadRequest, myResp.Error("Calculation not found"))
+
+	fmt.Printf("Извлеченный ID 2 : %s\n", id)
+
+	calc.Expression = req.Expression
+	calc.Result = result
+
+	database.DB.Save(&calc)
+
+	return c.JSON(http.StatusOK, getAllCalculations())
 }
 
-func saveToDB(expressions string, result string) calculate.CalculationType {
+func getAllCalculations() []calculate.Calculations {
+	var calculations []calculate.Calculations
 
-	calc := calculate.CalculationType{
-		ID:         uuid.NewString(),
-		Expression: expressions,
-		Result:     result,
-	}
+	database.DB.Find(&calculations)
 
-	calculations = append(calculations, calc)
-
-	return calc
+	return calculations
 }
 
 func main() {
+
+	database.InitDB()
+
 	e := echo.New()
 
 	e.Use(middleware.CORS())
