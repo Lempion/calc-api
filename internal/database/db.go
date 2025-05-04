@@ -1,7 +1,7 @@
 package database
 
 import (
-	"back/calculate"
+	"back/internal/calculationService"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"log"
@@ -9,14 +9,15 @@ import (
 
 var DB *gorm.DB
 
-func InitDB() {
+func InitDB() (*gorm.DB, error) {
 	var err error
 	DB, err = gorm.Open(sqlite.Open("main.db"), &gorm.Config{})
 	if err != nil {
 		log.Fatalf("failed to connect database: %v", err)
 	}
 
-	if err := DB.AutoMigrate(&calculate.Calculations{}); err != nil {
+	if err := DB.AutoMigrate(&calculationService.Calculations{}); err != nil {
 		log.Fatalf("failed to migrate database: %v", err)
 	}
+	return DB, nil
 }

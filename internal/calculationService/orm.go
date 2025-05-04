@@ -1,4 +1,4 @@
-package calculate
+package calculationService
 
 type Calculations struct {
 	ID         string `json:"id" gorm:"primaryKey;type:text"`
